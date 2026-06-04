@@ -88,3 +88,20 @@ Each challenge/demo has parallel `esp32/` and `fpga/` folders:
 - **NEVER commit or push anything from `challenges/` or `challenges_public/`.**
   Both folders are gitignored. If a future change accidentally un-ignores them,
   STOP and ask before any git operation.
+
+## Fork & Development Branch Rules
+
+- **Fork Base Branch**: The primary branch for all ongoing development on this fork (`omersho11/TechCrash2026`) is `Development` (NOT `main`).
+- **Feature Branches**: All feature/challenge branches must be created from `Development`.
+- **Target Pull Requests**: Pull requests must target the fork's `Development` branch (`omersho11/TechCrash2026:Development`), NOT `main` or the upstream repository (`avisalmon/TechCrash2026`).
+- **Avoid Upstream PRs**:
+  - Always use comparison URLs configured for your fork to compare feature branches to `Development`:
+    `https://github.com/omersho11/TechCrash2026/compare/Development...<your-feature-branch>`
+  - When opening PRs in the GitHub Web UI, verify that the **base repository** is set to `omersho11/TechCrash2026` and the **base branch** is set to `Development`.
+- **Syncing with Upstream**: Fetch and merge updates from the upstream master repository locally:
+  ```powershell
+  git checkout Development
+  git fetch upstream
+  git merge upstream/main
+  ```
+
