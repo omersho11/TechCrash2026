@@ -46,18 +46,29 @@ void setup() {
 }
 
 void loop() {
-    // ---- Wait for 4-byte header (count, little-endian) ----
-    while (FpgaSerial.available() < 4) {
-        // tight polling loop for speed, no delay
+    // ---- Flush any stale/noise bytes before starting new run ----
+    while (FpgaSerial.available() > 0) {
+        FpgaSerial.read();
     }
 
-    uint32_t N = 0;
-    N |= (uint32_t)FpgaSerial.read();
-    N |= (uint32_t)FpgaSerial.read() << 8;
-    N |= (uint32_t)FpgaSerial.read() << 16;
-    N |= (uint32_t)FpgaSerial.read() << 24;
+    // ---- Synchronize on the 4-byte header: 0x10, 0x27, 0x00, 0x00 ----
+    int syncState = 0;
+    while (syncState < 4) {
+        if (FpgaSerial.available() > 0) {
+            uint8_t b = FpgaSerial.read();
+            if (syncState == 0 && b == 0x10) syncState = 1;
+            else if (syncState == 1 && b == 0x27) syncState = 2;
+            else if (syncState == 2 && b == 0x00) syncState = 3;
+            else if (syncState == 3 && b == 0x00) syncState = 4;
+            else {
+                // Reset sync state, checking if current byte is start of header
+                syncState = (b == 0x10) ? 1 : 0;
+            }
+        }
+    }
 
-    Serial.printf("Receiving %u bytes...\n", N);
+    uint32_t N = 10000;
+    Serial.printf("Synchronized! Receiving %u bytes...\n", N);
     updateOLED("Receiving...", N, 0);
 
     // ---- Receive N bytes and accumulate sum ----
