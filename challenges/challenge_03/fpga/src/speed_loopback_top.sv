@@ -43,21 +43,22 @@ module speed_loopback_top(
     // ---- Checksum accumulator ----
     reg [31:0] sum;
 
-    // ---- UART TX (FPGA -> ESP32 on GPIO[1]) ----
+    // ---- I2S Transmitter & UART RX (FPGA <-> ESP32) ----
     reg        tx_start;
     reg  [7:0] tx_data;
     wire       tx_busy;
-    wire       tx_out;
-
-    uart_tx #(.CLK_FREQ(50_000_000), .BAUD(9600)) u_tx (
-        .clk(clk), .rst_n(rst_n),
-        .tx_start(tx_start), .tx_data(tx_data),
-        .tx_busy(tx_busy),   .tx_out(tx_out)
-    );
-
-    // ---- UART RX (ESP32 -> FPGA on GPIO[0]) ----
     wire [7:0] rx_data;
     wire       rx_valid;
+    wire       bclk;
+    wire       ws;
+    wire       sd;
+
+    i2s_tx #(.CLK_FREQ(50_000_000)) u_tx (
+        .clk(clk), .rst_n(rst_n), .start(start_pulse),
+        .tx_start(tx_start), .tx_data(tx_data),
+        .tx_busy(tx_busy),
+        .bclk(bclk), .ws(ws), .sd(sd)
+    );
 
     uart_rx #(.CLK_FREQ(50_000_000), .BAUD(9600)) u_rx (
         .clk(clk), .rst_n(rst_n),
@@ -66,9 +67,15 @@ module speed_loopback_top(
     );
 
     // ---- Arduino Header IO ----
-    assign ARDUINO_IO[0]    = 1'bz;          // RX input
-    assign ARDUINO_IO[1]    = tx_out;        // TX output
-    assign ARDUINO_IO[15:2] = {14{1'bz}};   // unused
+    assign ARDUINO_IO[0]     = 1'bz;                // UART RX input
+    assign ARDUINO_IO[1]     = 1'bz;                // Unused
+    assign ARDUINO_IO[2]     = 1'bz;                // I2S BCLK input
+    assign ARDUINO_IO[3]     = 1'bz;                // I2S WS input
+    assign ARDUINO_IO[4]     = sd;                  // I2S SD output
+    assign ARDUINO_IO[15:5]  = {11{1'bz}};          // Unused
+
+    assign bclk = ARDUINO_IO[2];
+    assign ws   = ARDUINO_IO[3];
 
     // ---- Millisecond timer ----
     reg [31:0] timer_ms;
@@ -106,30 +113,30 @@ module speed_loopback_top(
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state         <= S_IDLE;
-            lfsr          <= 16'hACE1;
-            sum           <= 0;
-            send_count    <= 0;
-            hdr_idx       <= 0;
-            pass          <= 0;
-            rx_checksum   <= 0;
-            tx_start      <= 0;
-            timer_running <= 0;
-            timer_reset   <= 0;
+            state             <= S_IDLE;
+            lfsr              <= 16'hACE1;
+            sum               <= 0;
+            send_count        <= 0;
+            hdr_idx           <= 0;
+            pass              <= 0;
+            rx_checksum       <= 0;
+            tx_start          <= 0;
+            timer_running     <= 0;
+            timer_reset       <= 0;
         end else begin
             tx_start    <= 0;       // default: one-cycle pulse
             timer_reset <= 0;
 
             // ---- Start / Restart ----
             if (start_pulse && (state == S_IDLE || state == S_DONE)) begin
-                state         <= S_HDR;
-                lfsr          <= 16'hACE1;
-                sum           <= 0;
-                send_count    <= 0;
-                hdr_idx       <= 0;
-                pass          <= 0;
-                timer_reset   <= 1;
-                timer_running <= 1;
+                state             <= S_HDR;
+                lfsr              <= 16'hACE1;
+                sum               <= 0;
+                send_count        <= 0;
+                hdr_idx           <= 0;
+                pass              <= 0;
+                timer_reset       <= 1;
+                timer_running     <= 1;
             end else begin
                 case (state)
                     S_IDLE: ;   // wait for start_pulse (handled above)
