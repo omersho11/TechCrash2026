@@ -43,39 +43,47 @@ module speed_loopback_top(
     // ---- Checksum accumulator ----
     reg [31:0] sum;
 
-    // ---- I2S Transmitter & UART RX (FPGA <-> ESP32) ----
+    // ---- Parallel SPI Transmitter & UART RX (FPGA <-> ESP32) ----
     reg        tx_start;
     reg  [7:0] tx_data;
     wire       tx_busy;
     wire [7:0] rx_data;
     wire       rx_valid;
-    wire       bclk;
-    wire       ws;
-    wire       sd;
+    wire [7:0] parallel_data;
+    wire       sclk_out;
 
-    i2s_tx #(.CLK_FREQ(50_000_000)) u_tx (
+    parallel_spi_tx #(.CLK_DIV(16)) u_tx (
         .clk(clk), .rst_n(rst_n), .start(start_pulse),
         .tx_start(tx_start), .tx_data(tx_data),
         .tx_busy(tx_busy),
-        .bclk(bclk), .ws(ws), .sd(sd)
+        .parallel_data(parallel_data),
+        .sclk(sclk_out)
     );
 
-    uart_rx #(.CLK_FREQ(50_000_000), .BAUD(9600)) u_rx (
+    uart_rx #(.CLK_FREQ(50_000_000), .BAUD(921600)) u_rx (
         .clk(clk), .rst_n(rst_n),
         .rx_in(ARDUINO_IO[0]),
         .rx_data(rx_data), .rx_valid(rx_valid)
     );
 
-    // ---- Arduino Header IO ----
-    assign ARDUINO_IO[0]     = 1'bz;                // UART RX input
-    assign ARDUINO_IO[1]     = 1'bz;                // Unused
-    assign ARDUINO_IO[2]     = 1'bz;                // I2S BCLK input
-    assign ARDUINO_IO[3]     = 1'bz;                // I2S WS input
-    assign ARDUINO_IO[4]     = sd;                  // I2S SD output
-    assign ARDUINO_IO[15:5]  = {11{1'bz}};          // Unused
+    // ---- Chip Select (Active Low) ----
+    wire cs_n = ~(state == S_HDR || state == S_DATA);
 
-    assign bclk = ARDUINO_IO[2];
-    assign ws   = ARDUINO_IO[3];
+    // ---- Arduino Header IO ----
+    wire drive_bus = (state == S_HDR || state == S_DATA);
+    assign ARDUINO_IO[0]      = 1'bz;                // UART RX input (GPIO 16)
+    assign ARDUINO_IO[1]      = 1'bz;                // Unused
+    assign ARDUINO_IO[2]      = drive_bus ? parallel_data[0] : 1'bz; // GPIO 15
+    assign ARDUINO_IO[3]      = drive_bus ? parallel_data[1] : 1'bz; // GPIO 2
+    assign ARDUINO_IO[4]      = drive_bus ? parallel_data[2] : 1'bz; // GPIO 4
+    assign ARDUINO_IO[5]      = drive_bus ? parallel_data[3] : 1'bz; // GPIO 12
+    assign ARDUINO_IO[6]      = drive_bus ? parallel_data[4] : 1'bz; // GPIO 17
+    assign ARDUINO_IO[7]      = drive_bus ? parallel_data[5] : 1'bz; // GPIO 5
+    assign ARDUINO_IO[8]      = drive_bus ? parallel_data[6] : 1'bz; // GPIO 18
+    assign ARDUINO_IO[9]      = drive_bus ? parallel_data[7] : 1'bz; // GPIO 19
+    assign ARDUINO_IO[10]     = drive_bus ? sclk_out         : 1'bz; // GPIO 23
+    assign ARDUINO_IO[11]     = drive_bus ? cs_n             : 1'bz; // GPIO 14 (CS_N)
+    assign ARDUINO_IO[15:12]  = {4{1'bz}};           // Unused
 
     // ---- Millisecond timer ----
     reg [31:0] timer_ms;
