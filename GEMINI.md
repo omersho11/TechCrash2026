@@ -73,21 +73,6 @@ Each challenge/demo has parallel `esp32/` and `fpga/` folders:
 - Do NOT hardcode COM port numbers. PlatformIO auto-detects.
 - Do NOT install ESP32 toolchain manually. PlatformIO handles it.
 
-## Git Rules (HARD STOP)
-
-- **NEVER `git push` without explicit permission from Avi.** This applies to every
-  branch, every remote, every workspace. Local commits may be proposed when asked,
-  but anything that touches a remote requires Avi to say "push" / "publish" /
-  "ship" explicitly. Phrases like "go ahead", "do it", or "wanna try?" are NOT
-  push permission.
-- Same rule applies to `git push --force`, `git push --tags`, `gh pr create`,
-  `gh pr merge`, and any script that internally pushes (e.g.
-  `scripts/publish-challenges.ps1` in `-IntoMainRepo` or `-SeparateRepo` modes).
-- Default behavior when work is ready: stage and commit locally if asked, then
-  stop and report "commit ready, awaiting push permission".
-- **NEVER commit or push anything from `challenges/` or `challenges_public/`.**
-  Both folders are gitignored. If a future change accidentally un-ignores them,
-  STOP and ask before any git operation.
 
 ## Fork & Development Branch Rules
 
