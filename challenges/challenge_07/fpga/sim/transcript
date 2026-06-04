@@ -1,0 +1,11 @@
+# vsim -c work.fp8_adder_tb -do "run -all; quit -f" 
+# Start time: 00:15:29 on Jun 05,2026
+# Loading work.fp8_adder_tb
+# Loading work.fp8_adder
+# run -all
+# SUMMARY pass=4096 fail=0 total_wait_cycles=4096
+# FP8 adder testbench PASSED
+# ** Note: $finish    : fp8_adder_tb.v(122)
+#    Time: 327790 ns  Iteration: 1  Instance: /fp8_adder_tb
+# End time: 00:15:29 on Jun 05,2026, Elapsed time: 0:00:00
+# Errors: 0, Warnings: 0

@@ -1,0 +1,11 @@
+
+State Machine - |fp8_top|test_controller:tc|state
+Name state.TC_DONE state.TC_NEXT state.TC_CHECK state.TC_WAIT_ADD state.TC_LAUNCH state.TC_WAIT_MEM state.TC_FETCH state.TC_IDLE 
+state.TC_IDLE 0 0 0 0 0 0 0 0 
+state.TC_FETCH 0 0 0 0 0 0 1 1 
+state.TC_WAIT_MEM 0 0 0 0 0 1 0 1 
+state.TC_LAUNCH 0 0 0 0 1 0 0 1 
+state.TC_WAIT_ADD 0 0 0 1 0 0 0 1 
+state.TC_CHECK 0 0 1 0 0 0 0 1 
+state.TC_NEXT 0 1 0 0 0 0 0 1 
+state.TC_DONE 1 0 0 0 0 0 0 1 
