@@ -49,7 +49,7 @@ module speed_loopback_top(
     wire       tx_busy;
     wire       tx_out;
 
-    uart_tx #(.CLK_FREQ(50_000_000), .BAUD(5_000_000)) u_tx (
+    uart_tx #(.CLK_FREQ(50_000_000), .BAUD(9600)) u_tx (
         .clk(clk), .rst_n(rst_n),
         .tx_start(tx_start), .tx_data(tx_data),
         .tx_busy(tx_busy),   .tx_out(tx_out)
@@ -59,7 +59,7 @@ module speed_loopback_top(
     wire [7:0] rx_data;
     wire       rx_valid;
 
-    uart_rx #(.CLK_FREQ(50_000_000), .BAUD(5_000_000)) u_rx (
+    uart_rx #(.CLK_FREQ(50_000_000), .BAUD(9600)) u_rx (
         .clk(clk), .rst_n(rst_n),
         .rx_in(ARDUINO_IO[0]),
         .rx_data(rx_data), .rx_valid(rx_valid)

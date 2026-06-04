@@ -33,8 +33,8 @@ void setup() {
         Serial.println("OLED init failed!");
     }
 
-    // 5 Mbps high-speed UART
-    FpgaSerial.begin(5000000, SERIAL_8N1, PIN_FPGA_RX, PIN_FPGA_TX);
+    // 9600 baud UART
+    FpgaSerial.begin(9600, SERIAL_8N1, PIN_FPGA_RX, PIN_FPGA_TX);
 
     display.clearDisplay();
     display.setTextSize(1);
