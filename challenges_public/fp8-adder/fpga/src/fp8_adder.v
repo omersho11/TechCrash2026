@@ -1,21 +1,8 @@
 // ============================================================================
-// FP8 E4M3 Adder — SLOW REFERENCE IMPLEMENTATION
+// FP8 E4M3 Adder — Optimized for sum-only throughput
 // ============================================================================
-// This is the intentionally slow, multi-cycle, non-pipelined reference adder.
-// Teams may modify this file and challenge_pll.v to improve end-to-end runtime.
-//
-// Format: FP8 E4M3 — 1 sign | 4 exponent | 3 mantissa
-//   Bias = 7, no infinity (exp=15 is valid), NaN = 0x7F/0xFF
-//
-// Interface:
-//   - start: pulse high for 1 clock to begin computation
-//   - a, b: 8-bit FP8 inputs (must be stable while busy)
-//   - result: 8-bit FP8 output (valid when done=1)
-//   - done: pulses high for 1 clock when result is ready
-//   - busy: high while computing
-//
-// Performance target: This reference takes 12+ clock cycles per addition.
-// Teams can compete on both micro-architecture and DUT clock frequency.
+// Tailored for this challenge workload: compute only A + B in FP8 E4M3.
+// Latency is fixed at 2 cycles from start pulse to done pulse.
 // ============================================================================
 
 module fp8_adder (
@@ -29,19 +16,16 @@ module fp8_adder (
     output reg        busy
 );
 
-    localparam S_IDLE   = 3'd0;
-    localparam S_PREP   = 3'd1;
-    localparam S_ENCODE = 3'd2;
-    localparam S_WAIT   = 3'd3;
-    localparam S_DONE   = 3'd4;
-    localparam FIXED_LATENCY = 4'd11;
+    localparam S_IDLE   = 2'd0;
+    localparam S_PREP   = 2'd1;
+    localparam S_ENCODE = 2'd2;
+    localparam S_DONE   = 2'd3;
 
-    reg [2:0] state;
-    reg [3:0] delay_count;
+    reg [1:0] state;
     reg [7:0] a_reg;
     reg [7:0] b_reg;
-    reg       special_valid;
-    reg [7:0] special_result;
+    reg [7:0] prep_result;
+    reg       prep_special;
     integer   sum_scaled_reg;
 
     function integer floor_log2;
@@ -49,7 +33,7 @@ module fp8_adder (
         integer bit_idx;
         begin
             floor_log2 = 0;
-            for (bit_idx = 0; bit_idx < 31; bit_idx = bit_idx + 1) begin
+            for (bit_idx = 0; bit_idx < 18; bit_idx = bit_idx + 1) begin
                 if ((value >> bit_idx) != 0)
                     floor_log2 = bit_idx;
             end
@@ -147,16 +131,15 @@ module fp8_adder (
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state       <= S_IDLE;
-            delay_count <= 4'd0;
-            a_reg       <= 8'd0;
-            b_reg       <= 8'd0;
-            special_valid <= 1'b0;
-            special_result <= 8'd0;
+            state         <= S_IDLE;
+            a_reg         <= 8'd0;
+            b_reg         <= 8'd0;
+            prep_result   <= 8'd0;
+            prep_special  <= 1'b0;
             sum_scaled_reg <= 0;
-            result      <= 8'd0;
-            done        <= 1'b0;
-            busy        <= 1'b0;
+            result        <= 8'd0;
+            done          <= 1'b0;
+            busy          <= 1'b0;
         end else begin
             done <= 1'b0;
 
@@ -173,33 +156,24 @@ module fp8_adder (
                 S_PREP: begin
                     if (((a_reg[6:3] == 4'hF) && (a_reg[2:0] == 3'h7)) ||
                         ((b_reg[6:3] == 4'hF) && (b_reg[2:0] == 3'h7))) begin
-                        special_valid <= 1'b1;
-                        special_result <= 8'h7F;
+                        prep_special <= 1'b1;
+                        prep_result <= 8'h7F;
                         sum_scaled_reg <= 0;
                     end else if ((a_reg[6:0] == 7'd0) && (b_reg[6:0] == 7'd0)) begin
-                        special_valid <= 1'b1;
-                        special_result <= (a_reg[7] && b_reg[7]) ? 8'h80 : 8'h00;
+                        prep_special <= 1'b1;
+                        prep_result <= (a_reg[7] && b_reg[7]) ? 8'h80 : 8'h00;
                         sum_scaled_reg <= 0;
                     end else begin
-                        special_valid <= 1'b0;
-                        special_result <= 8'h00;
+                        prep_special <= 1'b0;
+                        prep_result <= 8'h00;
                         sum_scaled_reg <= fp8_to_scaled(a_reg) + fp8_to_scaled(b_reg);
                     end
                     state <= S_ENCODE;
                 end
 
                 S_ENCODE: begin
-                    result <= special_valid ? special_result : fp8_from_sum(sum_scaled_reg);
-                    delay_count <= FIXED_LATENCY;
-                    state <= S_WAIT;
-                end
-
-                S_WAIT: begin
-                    if (delay_count == 0) begin
-                        state <= S_DONE;
-                    end else begin
-                        delay_count <= delay_count - 4'd1;
-                    end
+                    result <= prep_special ? prep_result : fp8_from_sum(sum_scaled_reg);
+                    state <= S_DONE;
                 end
 
                 S_DONE: begin
