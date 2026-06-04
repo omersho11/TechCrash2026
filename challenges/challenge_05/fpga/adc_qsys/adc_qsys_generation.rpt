@@ -1,0 +1,19 @@
+Info: Starting: Create HDL design files for synthesis
+Info: qsys-generate C:\Users\Omer\Desktop\Coding\Hackathons\TechCrash2026\challenges\challenge_05\fpga\adc_qsys.qsys --synthesis=VERILOG --output-directory=C:\Users\Omer\Desktop\Coding\Hackathons\TechCrash2026\challenges\challenge_05\fpga\adc_qsys\synthesis --family="MAX 10" --part=10M50DAF484C7G
+Progress: Loading fpga/adc_qsys.qsys
+Progress: Reading input file
+Progress: Adding adc [altera_modular_adc 17.1]
+Progress: Parameterizing module adc
+Progress: Adding clk_0 [clock_source 17.1]
+Progress: Parameterizing module clk_0
+Progress: Building connections
+Progress: Parameterizing connections
+Progress: Validating
+Progress: Done reading input file
+Info: adc_qsys: Generating adc_qsys "adc_qsys" for QUARTUS_SYNTH
+Info: adc: "adc_qsys" instantiated altera_modular_adc "adc"
+Info: rst_controller: "adc_qsys" instantiated altera_reset_controller "rst_controller"
+Info: control_internal: "adc" instantiated altera_modular_adc_control "control_internal"
+Info: adc_qsys: Done "adc_qsys" with 4 modules, 12 files
+Info: qsys-generate succeeded.
+Info: Finished: Create HDL design files for synthesis
