@@ -32,7 +32,6 @@ module milestone_3_top (
     );
 
     // Mode display on HEX5
-    // Training mode (SW[8]=0) -> display "t", Inference mode (SW[8]=1) -> display "i"
     assign HEX5 = SW[8] ? 8'hF7 : 8'h87; 
     assign HEX4 = 8'hFF;
     assign HEX3 = 8'hFF;
@@ -50,17 +49,14 @@ module milestone_3_top (
         .data(rx_data)
     );
 
-    // --- UART Packet Parser state machine ---
-    // Registers to store 25 weights & biases (signed 8-bit Q4.4 format)
+    // --- UART Packet Parser ---
     reg signed [7:0] w1 [0:3][0:3];
     reg signed [7:0] b1 [0:3];
     reg signed [7:0] w2 [0:3];
     reg signed [7:0] b2;
 
-    // Inputs received from ESP32 (signed 8-bit Q4.4 format)
     reg signed [7:0] in0, in1, in2, in3;
 
-    // Parser states
     reg [5:0] rx_state = 0;
     reg [7:0] rx_checksum = 0;
     reg [7:0] temp_weights [0:24];
@@ -70,28 +66,23 @@ module milestone_3_top (
         compute_trigger <= 0;
         if (rx_ready) begin
             case (rx_state)
-                // Idle / Detect header
                 0: begin
                     if (rx_data == 8'hA0) begin
-                        // Start of weights packet (25 bytes + 1 checksum)
                         rx_state <= 1;
                         rx_checksum <= 0;
                     end else if (rx_data == 8'hB0) begin
-                        // Start of inputs packet (4 bytes + 1 checksum)
                         rx_state <= 28;
                         rx_checksum <= 0;
                     end
                 end
 
-                // --- Parse Weight Packet (States 1 to 25) ---
                 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25: begin
                     temp_weights[rx_state - 1] <= rx_data;
                     rx_checksum <= rx_checksum + rx_data;
                     rx_state <= rx_state + 1;
                 end
-                26: begin // Validate weights checksum
+                26: begin
                     if (rx_checksum == rx_data) begin
-                        // Copy temp weights to formal registers
                         w1[0][0] <= temp_weights[0]; w1[0][1] <= temp_weights[1]; w1[0][2] <= temp_weights[2]; w1[0][3] <= temp_weights[3];
                         b1[0]    <= temp_weights[4]; w2[0]    <= temp_weights[5];
                         w1[1][0] <= temp_weights[6]; w1[1][1] <= temp_weights[7]; w1[1][2] <= temp_weights[8]; w1[1][3] <= temp_weights[9];
@@ -105,7 +96,6 @@ module milestone_3_top (
                     rx_state <= 0;
                 end
 
-                // --- Parse Input Packet (States 28 to 31) ---
                 28: begin
                     in0 <= rx_data;
                     rx_checksum <= rx_checksum + rx_data;
@@ -126,7 +116,7 @@ module milestone_3_top (
                     rx_checksum <= rx_checksum + rx_data;
                     rx_state <= 32;
                 end
-                32: begin // Validate inputs checksum
+                32: begin
                     if (rx_checksum == rx_data) begin
                         compute_trigger <= 1'b1;
                     end
@@ -138,32 +128,46 @@ module milestone_3_top (
     end
 
     // --- Neural Network Hardware Accelerator ---
-    // Fixed point inputs and internal sums
-    reg signed [16:0] sum [0:3];
     reg signed [7:0]  h [0:3];
-    reg signed [16:0] out_sum;
     reg               flap_decision;
+
+    // Explicitly signed intermediate products & sums
+    reg signed [15:0] prod [0:3][0:3];
+    reg signed [15:0] bias_scaled [0:3];
+    reg signed [15:0] sum_node [0:3];
+
+    reg signed [15:0] out_prod [0:3];
+    reg signed [15:0] out_bias_scaled;
+    reg signed [15:0] out_sum_node;
 
     always @(posedge MAX10_CLK1_50) begin
         if (compute_trigger) begin
-            // Layer 1 - Hidden Neurons
-            // w * in gives Q8.8 result. Bias is Q4.4, scaled to Q8.8 by shift left by 4.
-            // Activating with step threshold: sum > 0 -> h = 1.0 (16 in Q4.4), else 0.
-            sum[0] = (w1[0][0]*in0 + w1[0][1]*in1 + w1[0][2]*in2 + w1[0][3]*in3) + (b1[0] << 4);
-            h[0]   = (sum[0] > 0) ? 8'd16 : 8'd0;
+            // Layer 1
+            prod[0][0] = w1[0][0] * in0; prod[0][1] = w1[0][1] * in1; prod[0][2] = w1[0][2] * in2; prod[0][3] = w1[0][3] * in3;
+            bias_scaled[0] = {{4{b1[0][7]}}, b1[0], 4'b0};
+            sum_node[0] = prod[0][0] + prod[0][1] + prod[0][2] + prod[0][3] + bias_scaled[0];
+            h[0] = (sum_node[0] > 16'sd0) ? 8'sd16 : 8'sd0; // step threshold active
 
-            sum[1] = (w1[1][0]*in0 + w1[1][1]*in1 + w1[1][2]*in2 + w1[1][3]*in3) + (b1[1] << 4);
-            h[1]   = (sum[1] > 0) ? 8'd16 : 8'd0;
+            prod[1][0] = w1[1][0] * in0; prod[1][1] = w1[1][1] * in1; prod[1][2] = w1[1][2] * in2; prod[1][3] = w1[1][3] * in3;
+            bias_scaled[1] = {{4{b1[1][7]}}, b1[1], 4'b0};
+            sum_node[1] = prod[1][0] + prod[1][1] + prod[1][2] + prod[1][3] + bias_scaled[1];
+            h[1] = (sum_node[1] > 16'sd0) ? 8'sd16 : 8'sd0;
 
-            sum[2] = (w1[2][0]*in0 + w1[2][1]*in1 + w1[2][2]*in2 + w1[2][3]*in3) + (b1[2] << 4);
-            h[2]   = (sum[2] > 0) ? 8'd16 : 8'd0;
+            prod[2][0] = w1[2][0] * in0; prod[2][1] = w1[2][1] * in1; prod[2][2] = w1[2][2] * in2; prod[2][3] = w1[2][3] * in3;
+            bias_scaled[2] = {{4{b1[2][7]}}, b1[2], 4'b0};
+            sum_node[2] = prod[2][0] + prod[2][1] + prod[2][2] + prod[2][3] + bias_scaled[2];
+            h[2] = (sum_node[2] > 16'sd0) ? 8'sd16 : 8'sd0;
 
-            sum[3] = (w1[3][0]*in0 + w1[3][1]*in1 + w1[3][2]*in2 + w1[3][3]*in3) + (b1[3] << 4);
-            h[3]   = (sum[3] > 0) ? 8'd16 : 8'd0;
+            prod[3][0] = w1[3][0] * in0; prod[3][1] = w1[3][1] * in1; prod[3][2] = w1[3][2] * in2; prod[3][3] = w1[3][3] * in3;
+            bias_scaled[3] = {{4{b1[3][7]}}, b1[3], 4'b0};
+            sum_node[3] = prod[3][0] + prod[3][1] + prod[3][2] + prod[3][3] + bias_scaled[3];
+            h[3] = (sum_node[3] > 16'sd0) ? 8'sd16 : 8'sd0;
 
-            // Layer 2 - Output Neuron
-            out_sum = (w2[0]*h[0] + w2[1]*h[1] + w2[2]*h[2] + w2[3]*h[3]) + (b2 << 4);
-            flap_decision = (out_sum > 0) ? 1'b1 : 1'b0;
+            // Layer 2
+            out_prod[0] = w2[0] * h[0]; out_prod[1] = w2[1] * h[1]; out_prod[2] = w2[2] * h[2]; out_prod[3] = w2[3] * h[3];
+            out_bias_scaled = {{4{b2[7]}}, b2, 4'b0};
+            out_sum_node = out_prod[0] + out_prod[1] + out_prod[2] + out_prod[3] + out_bias_scaled;
+            flap_decision = (out_sum_node > 16'sd0) ? 1'b1 : 1'b0;
         end
     end
 
@@ -181,7 +185,6 @@ module milestone_3_top (
         sw9_last <= SW[9];
     end
 
-    // Periodic 1-second sync timer
     reg [25:0] timer_counter = 0;
     wire timer_tick = (timer_counter == 26'd50_000_000);
     always @(posedge MAX10_CLK1_50) begin
@@ -201,7 +204,6 @@ module milestone_3_top (
         .busy(tx_busy)
     );
 
-    // TX state machine
     reg [2:0] tx_state = 0;
     reg send_diff = 0;
     reg send_mode9 = 0;
@@ -234,7 +236,6 @@ module milestone_3_top (
         case (tx_state)
             0: begin
                 tx_start <= 1'b0;
-                // High priority on inference decision returns
                 if (send_decision && !tx_busy) begin
                     tx_data <= queued_decision ? 8'h01 : 8'h00;
                     tx_start <= 1'b1;
@@ -251,7 +252,7 @@ module milestone_3_top (
                     send_mode9 <= 1'b0;
                     tx_state <= 1;
                 end else if (send_mode8 && !tx_busy) begin
-                    tx_data <= queued_mode8 ? 8'h31 : 8'h30; // 0x31: inference, 0x30: training
+                    tx_data <= queued_mode8 ? 8'h31 : 8'h30;
                     tx_start <= 1'b1;
                     send_mode8 <= 1'b0;
                     tx_state <= 1;
@@ -326,14 +327,14 @@ module uart_rx_9600 #(
     always @(posedge clk) begin
         ready <= 1'b0;
         case (state)
-            0: begin // Idle
+            0: begin
                 clk_cnt <= 0;
                 bit_idx <= 0;
-                if (rx_d2 == 1'b0) begin // Start bit detected
+                if (rx_d2 == 1'b0) begin
                     state <= 1;
                 end
             end
-            1: begin // Wait for half period to sample start bit
+            1: begin
                 if (clk_cnt < (BIT_PERIOD / 2) - 1) begin
                     clk_cnt <= clk_cnt + 1;
                 end else begin
@@ -341,11 +342,11 @@ module uart_rx_9600 #(
                     if (rx_d2 == 1'b0) begin
                         state <= 2;
                     end else begin
-                        state <= 0; // False start
+                        state <= 0;
                     end
                 end
             end
-            2: begin // Sample data bits
+            2: begin
                 if (clk_cnt < BIT_PERIOD - 1) begin
                     clk_cnt <= clk_cnt + 1;
                 end else begin
@@ -358,7 +359,7 @@ module uart_rx_9600 #(
                     end
                 end
             end
-            3: begin // Stop bit
+            3: begin
                 if (clk_cnt < BIT_PERIOD - 1) begin
                     clk_cnt <= clk_cnt + 1;
                 end else begin

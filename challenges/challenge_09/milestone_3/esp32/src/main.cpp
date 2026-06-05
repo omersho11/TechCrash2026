@@ -250,14 +250,28 @@ bool queryFPGAInference(float nextPipeX, float nextPipeGapY) {
 
     Serial2.write(packet, 6);
 
-    // Wait with a timeout for FPGA decision
+    // Wait with a timeout for FPGA decision, parsing any sync packets on the fly
     uint32_t start_t = millis();
-    while (Serial2.available() == 0) {
-        if (millis() - start_t > 15) {
-            return false; // Timeout safety
+    while (millis() - start_t < 25) {
+        if (Serial2.available() > 0) {
+            uint8_t incomingByte = Serial2.read();
+            if ((incomingByte & 0xF0) == 0x10) {
+                difficulty = incomingByte & 0x0F;
+                updateDifficultySettings();
+            } else if (incomingByte == 0x20) {
+                showOnlyBest = false;
+            } else if (incomingByte == 0x21) {
+                showOnlyBest = true;
+            } else if (incomingByte == 0x30) {
+                fpgaInferenceMode = false;
+            } else if (incomingByte == 0x31) {
+                fpgaInferenceMode = true;
+            } else if (incomingByte == 0x00 || incomingByte == 0x01) {
+                return (incomingByte == 0x01);
+            }
         }
     }
-    return Serial2.read() == 0x01;
+    return false; // Timeout safety
 }
 
 void setup() {
