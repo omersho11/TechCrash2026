@@ -133,9 +133,9 @@ void updateDifficultySettings() {
     if (pipeDistance < 40) pipeDistance = 40;
 }
 
-// Convert float to Q4.4 fixed point
-int8_t floatToQ4_4(float val) {
-    return (int8_t)constrain(round(val * 16.0), -128, 127);
+// Convert float to Q2.6 fixed point
+int8_t floatToQ2_6(float val) {
+    return (int8_t)constrain(round(val * 64.0), -128, 127);
 }
 
 // Transmit best weights to FPGA
@@ -146,12 +146,12 @@ void transferWeightsToFPGA(NeuralNetwork &brain) {
     int idx = 1;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            packet[idx++] = (uint8_t)floatToQ4_4(brain.w1[i][j]);
+            packet[idx++] = (uint8_t)floatToQ2_6(brain.w1[i][j]);
         }
-        packet[idx++] = (uint8_t)floatToQ4_4(brain.b1[i]);
-        packet[idx++] = (uint8_t)floatToQ4_4(brain.w2[i]);
+        packet[idx++] = (uint8_t)floatToQ2_6(brain.b1[i]);
+        packet[idx++] = (uint8_t)floatToQ2_6(brain.w2[i]);
     }
-    packet[idx++] = (uint8_t)floatToQ4_4(brain.b2);
+    packet[idx++] = (uint8_t)floatToQ2_6(brain.b2);
     
     // Checksum calculation (sum of payload bytes)
     uint8_t checksum = 0;
@@ -235,10 +235,10 @@ void resetInferenceBird() {
 
 // Query FPGA for inference decision
 bool queryFPGAInference(float nextPipeX, float nextPipeGapY) {
-    int8_t in0 = floatToQ4_4(inferenceBirdY / GROUND_Y);
-    int8_t in1 = floatToQ4_4((inferenceBirdVel + 5.0) / 10.0);
-    int8_t in2 = floatToQ4_4((nextPipeX - (OLED_WIDTH / 4.0)) / OLED_WIDTH);
-    int8_t in3 = floatToQ4_4((nextPipeGapY - inferenceBirdY) / GROUND_Y);
+    int8_t in0 = floatToQ2_6(inferenceBirdY / GROUND_Y);
+    int8_t in1 = floatToQ2_6((inferenceBirdVel + 5.0) / 10.0);
+    int8_t in2 = floatToQ2_6((nextPipeX - (OLED_WIDTH / 4.0)) / OLED_WIDTH);
+    int8_t in3 = floatToQ2_6((nextPipeGapY - inferenceBirdY) / GROUND_Y);
 
     uint8_t packet[6];
     packet[0] = 0xB0; // Inputs header

@@ -50,6 +50,7 @@ module milestone_3_top (
     );
 
     // --- UART Packet Parser ---
+    // Q2.6 representation (1 sign, 1 integer, 6 fractional bits)
     reg signed [7:0] w1 [0:3][0:3];
     reg signed [7:0] b1 [0:3];
     reg signed [7:0] w2 [0:3];
@@ -127,19 +128,19 @@ module milestone_3_top (
         end
     end
 
-    // --- Piecewise Linear Sigmoid Approximation ---
+    // --- Piecewise Linear Sigmoid Approximation in Q2.6 ---
     function signed [7:0] pwl_sigmoid(input signed [15:0] sum_val);
         reg signed [7:0] sum_q;
         begin
-            // Convert Q8.8 product sum to Q4.4
-            sum_q = sum_val[11:4];
-            if (sum_q <= -8'sd32) begin
+            // Convert Q4.12 product sum back to Q2.6 by extracting sum_val[13:6]
+            sum_q = sum_val[13:6];
+            if (sum_q <= -8'sd128) begin
                 pwl_sigmoid = 8'sd0;
-            end else if (sum_q >= 8'sd32) begin
-                pwl_sigmoid = 8'sd16; // 1.0 in Q4.4
+            end else if (sum_q >= 8'sd127) begin
+                pwl_sigmoid = 8'sd64; // 1.0 in Q2.6
             end else begin
-                // 0.25 * sum_q + 0.5 -> (sum_q >>> 2) + 8
-                pwl_sigmoid = (sum_q >>> 2) + 8'sd8;
+                // 0.25 * sum_q + 0.5 -> (sum_q >>> 2) + 32
+                pwl_sigmoid = (sum_q >>> 2) + 8'sd32;
             end
         end
     endfunction
@@ -158,30 +159,30 @@ module milestone_3_top (
 
     always @(posedge MAX10_CLK1_50) begin
         if (compute_trigger) begin
-            // Layer 1 - Hidden Layers with PWL Sigmoid Activation
+            // Layer 1 - Hidden Layers with Q2.6 PWL Sigmoid Activation
             prod[0][0] = w1[0][0] * in0; prod[0][1] = w1[0][1] * in1; prod[0][2] = w1[0][2] * in2; prod[0][3] = w1[0][3] * in3;
-            bias_scaled[0] = {{4{b1[0][7]}}, b1[0], 4'b0};
+            bias_scaled[0] = {{2{b1[0][7]}}, b1[0], 6'b0}; // Shift left by 6 (Q2.6 -> Q4.12 scale)
             sum_node[0] = prod[0][0] + prod[0][1] + prod[0][2] + prod[0][3] + bias_scaled[0];
             h[0] = pwl_sigmoid(sum_node[0]);
 
             prod[1][0] = w1[1][0] * in0; prod[1][1] = w1[1][1] * in1; prod[1][2] = w1[1][2] * in2; prod[1][3] = w1[1][3] * in3;
-            bias_scaled[1] = {{4{b1[1][7]}}, b1[1], 4'b0};
+            bias_scaled[1] = {{2{b1[1][7]}}, b1[1], 6'b0};
             sum_node[1] = prod[1][0] + prod[1][1] + prod[1][2] + prod[1][3] + bias_scaled[1];
             h[1] = pwl_sigmoid(sum_node[1]);
 
             prod[2][0] = w1[2][0] * in0; prod[2][1] = w1[2][1] * in1; prod[2][2] = w1[2][2] * in2; prod[2][3] = w1[2][3] * in3;
-            bias_scaled[2] = {{4{b1[2][7]}}, b1[2], 4'b0};
+            bias_scaled[2] = {{2{b1[2][7]}}, b1[2], 6'b0};
             sum_node[2] = prod[2][0] + prod[2][1] + prod[2][2] + prod[2][3] + bias_scaled[2];
             h[2] = pwl_sigmoid(sum_node[2]);
 
             prod[3][0] = w1[3][0] * in0; prod[3][1] = w1[3][1] * in1; prod[3][2] = w1[3][2] * in2; prod[3][3] = w1[3][3] * in3;
-            bias_scaled[3] = {{4{b1[3][7]}}, b1[3], 4'b0};
+            bias_scaled[3] = {{2{b1[3][7]}}, b1[3], 6'b0};
             sum_node[3] = prod[3][0] + prod[3][1] + prod[3][2] + prod[3][3] + bias_scaled[3];
             h[3] = pwl_sigmoid(sum_node[3]);
 
-            // Layer 2 - Output Layer (Decision based on output sigmoid > 0.5, which is out_sum_node > 0)
+            // Layer 2 - Output Layer
             out_prod[0] = w2[0] * h[0]; out_prod[1] = w2[1] * h[1]; out_prod[2] = w2[2] * h[2]; out_prod[3] = w2[3] * h[3];
-            out_bias_scaled = {{4{b2[7]}}, b2, 4'b0};
+            out_bias_scaled = {{2{b2[7]}}, b2, 6'b0};
             out_sum_node = out_prod[0] + out_prod[1] + out_prod[2] + out_prod[3] + out_bias_scaled;
             flap_decision = (out_sum_node > 16'sd0) ? 1'b1 : 1'b0;
         end
