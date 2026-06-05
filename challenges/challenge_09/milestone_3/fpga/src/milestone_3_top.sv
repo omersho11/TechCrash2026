@@ -53,14 +53,16 @@ module milestone_3_top (
     // Q2.6 representation (1 sign, 1 integer, 6 fractional bits)
     reg signed [7:0] w1 [0:3][0:3];
     reg signed [7:0] b1 [0:3];
-    reg signed [7:0] w2 [0:3];
-    reg signed [7:0] b2;
+    reg signed [7:0] w2 [0:3][0:3];
+    reg signed [7:0] b2 [0:3];
+    reg signed [7:0] w3 [0:3];
+    reg signed [7:0] b3;
 
     reg signed [7:0] in0, in1, in2, in3;
 
     reg [5:0] rx_state = 0;
     reg [7:0] rx_checksum = 0;
-    reg [7:0] temp_weights [0:24];
+    reg [7:0] temp_weights [0:44];
     reg compute_trigger = 0;
 
     always @(posedge MAX10_CLK1_50) begin
@@ -72,52 +74,64 @@ module milestone_3_top (
                         rx_state <= 1;
                         rx_checksum <= 0;
                     end else if (rx_data == 8'hB0) begin
-                        rx_state <= 28;
+                        rx_state <= 48;
                         rx_checksum <= 0;
                     end
                 end
 
-                1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25: begin
+                1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45: begin
                     temp_weights[rx_state - 1] <= rx_data;
                     rx_checksum <= rx_checksum + rx_data;
                     rx_state <= rx_state + 1;
                 end
-                26: begin
+                46: begin
                     if (rx_checksum == rx_data) begin
                         w1[0][0] <= temp_weights[0]; w1[0][1] <= temp_weights[1]; w1[0][2] <= temp_weights[2]; w1[0][3] <= temp_weights[3];
-                        b1[0]    <= temp_weights[4]; w2[0]    <= temp_weights[5];
-                        w1[1][0] <= temp_weights[6]; w1[1][1] <= temp_weights[7]; w1[1][2] <= temp_weights[8]; w1[1][3] <= temp_weights[9];
-                        b1[1]    <= temp_weights[10]; w2[1]   <= temp_weights[11];
-                        w1[2][0] <= temp_weights[12]; w1[2][1] <= temp_weights[13]; w1[2][2] <= temp_weights[14]; w1[2][3] <= temp_weights[15];
-                        b1[2]    <= temp_weights[16]; w2[2]   <= temp_weights[17];
-                        w1[3][0] <= temp_weights[18]; w1[3][1] <= temp_weights[19]; w1[3][2] <= temp_weights[20]; w1[3][3] <= temp_weights[21];
-                        b1[3]    <= temp_weights[22]; w2[3]   <= temp_weights[23];
-                        b2       <= temp_weights[24];
+                        b1[0]    <= temp_weights[4];
+                        w2[0][0] <= temp_weights[5]; w2[0][1] <= temp_weights[6]; w2[0][2] <= temp_weights[7]; w2[0][3] <= temp_weights[8];
+                        b2[0]    <= temp_weights[9]; w3[0]    <= temp_weights[10];
+
+                        w1[1][0] <= temp_weights[11]; w1[1][1] <= temp_weights[12]; w1[1][2] <= temp_weights[13]; w1[1][3] <= temp_weights[14];
+                        b1[1]    <= temp_weights[15];
+                        w2[1][0] <= temp_weights[16]; w2[1][1] <= temp_weights[17]; w2[1][2] <= temp_weights[18]; w2[1][3] <= temp_weights[19];
+                        b2[1]    <= temp_weights[20]; w3[1]    <= temp_weights[21];
+
+                        w1[2][0] <= temp_weights[22]; w1[2][1] <= temp_weights[23]; w1[2][2] <= temp_weights[24]; w1[2][3] <= temp_weights[25];
+                        b1[2]    <= temp_weights[26];
+                        w2[2][0] <= temp_weights[27]; w2[2][1] <= temp_weights[28]; w2[2][2] <= temp_weights[29]; w2[2][3] <= temp_weights[30];
+                        b2[2]    <= temp_weights[31]; w3[2]    <= temp_weights[32];
+
+                        w1[3][0] <= temp_weights[33]; w1[3][1] <= temp_weights[34]; w1[3][2] <= temp_weights[35]; w1[3][3] <= temp_weights[36];
+                        b1[3]    <= temp_weights[37];
+                        w2[3][0] <= temp_weights[38]; w2[3][1] <= temp_weights[39]; w2[3][2] <= temp_weights[40]; w2[3][3] <= temp_weights[41];
+                        b2[3]    <= temp_weights[42]; w3[3]    <= temp_weights[43];
+
+                        b3       <= temp_weights[44];
                     end
                     rx_state <= 0;
                 end
 
-                28: begin
+                48: begin
                     in0 <= rx_data;
                     rx_checksum <= rx_checksum + rx_data;
-                    rx_state <= 29;
+                    rx_state <= 49;
                 end
-                29: begin
+                49: begin
                     in1 <= rx_data;
                     rx_checksum <= rx_checksum + rx_data;
-                    rx_state <= 30;
+                    rx_state <= 50;
                 end
-                30: begin
+                50: begin
                     in2 <= rx_data;
                     rx_checksum <= rx_checksum + rx_data;
-                    rx_state <= 31;
+                    rx_state <= 51;
                 end
-                31: begin
+                51: begin
                     in3 <= rx_data;
                     rx_checksum <= rx_checksum + rx_data;
-                    rx_state <= 32;
+                    rx_state <= 52;
                 end
-                32: begin
+                52: begin
                     if (rx_checksum == rx_data) begin
                         compute_trigger <= 1'b1;
                     end
@@ -146,45 +160,74 @@ module milestone_3_top (
     endfunction
 
     // --- Neural Network Hardware Accelerator ---
-    reg signed [7:0]  h [0:3];
+    reg signed [7:0]  h1 [0:3];
+    reg signed [7:0]  h2 [0:3];
     reg               flap_decision;
 
-    reg signed [15:0] prod [0:3][0:3];
-    reg signed [15:0] bias_scaled [0:3];
-    reg signed [15:0] sum_node [0:3];
+    // Layer 1
+    reg signed [15:0] prod1 [0:3][0:3];
+    reg signed [15:0] bias1_scaled [0:3];
+    reg signed [15:0] sum1_node [0:3];
 
-    reg signed [15:0] out_prod [0:3];
-    reg signed [15:0] out_bias_scaled;
-    reg signed [15:0] out_sum_node;
+    // Layer 2
+    reg signed [15:0] prod2 [0:3][0:3];
+    reg signed [15:0] bias2_scaled [0:3];
+    reg signed [15:0] sum2_node [0:3];
+
+    // Layer 3
+    reg signed [15:0] prod3 [0:3];
+    reg signed [15:0] bias3_scaled;
+    reg signed [15:0] sum3_node;
 
     always @(posedge MAX10_CLK1_50) begin
         if (compute_trigger) begin
-            // Layer 1 - Hidden Layers with Q2.6 PWL Sigmoid Activation
-            prod[0][0] = w1[0][0] * in0; prod[0][1] = w1[0][1] * in1; prod[0][2] = w1[0][2] * in2; prod[0][3] = w1[0][3] * in3;
-            bias_scaled[0] = {{2{b1[0][7]}}, b1[0], 6'b0}; // Shift left by 6 (Q2.6 -> Q4.12 scale)
-            sum_node[0] = prod[0][0] + prod[0][1] + prod[0][2] + prod[0][3] + bias_scaled[0];
-            h[0] = pwl_sigmoid(sum_node[0]);
+            // Layer 1 - Hidden Layer 1 with Q2.6 PWL Sigmoid Activation
+            prod1[0][0] = w1[0][0] * in0; prod1[0][1] = w1[0][1] * in1; prod1[0][2] = w1[0][2] * in2; prod1[0][3] = w1[0][3] * in3;
+            bias1_scaled[0] = {{2{b1[0][7]}}, b1[0], 6'b0}; // Shift left by 6 (Q2.6 -> Q4.12 scale)
+            sum1_node[0] = prod1[0][0] + prod1[0][1] + prod1[0][2] + prod1[0][3] + bias1_scaled[0];
+            h1[0] = pwl_sigmoid(sum1_node[0]);
 
-            prod[1][0] = w1[1][0] * in0; prod[1][1] = w1[1][1] * in1; prod[1][2] = w1[1][2] * in2; prod[1][3] = w1[1][3] * in3;
-            bias_scaled[1] = {{2{b1[1][7]}}, b1[1], 6'b0};
-            sum_node[1] = prod[1][0] + prod[1][1] + prod[1][2] + prod[1][3] + bias_scaled[1];
-            h[1] = pwl_sigmoid(sum_node[1]);
+            prod1[1][0] = w1[1][0] * in0; prod1[1][1] = w1[1][1] * in1; prod1[1][2] = w1[1][2] * in2; prod1[1][3] = w1[1][3] * in3;
+            bias1_scaled[1] = {{2{b1[1][7]}}, b1[1], 6'b0};
+            sum1_node[1] = prod1[1][0] + prod1[1][1] + prod1[1][2] + prod1[1][3] + bias1_scaled[1];
+            h1[1] = pwl_sigmoid(sum1_node[1]);
 
-            prod[2][0] = w1[2][0] * in0; prod[2][1] = w1[2][1] * in1; prod[2][2] = w1[2][2] * in2; prod[2][3] = w1[2][3] * in3;
-            bias_scaled[2] = {{2{b1[2][7]}}, b1[2], 6'b0};
-            sum_node[2] = prod[2][0] + prod[2][1] + prod[2][2] + prod[2][3] + bias_scaled[2];
-            h[2] = pwl_sigmoid(sum_node[2]);
+            prod1[2][0] = w1[2][0] * in0; prod1[2][1] = w1[2][1] * in1; prod1[2][2] = w1[2][2] * in2; prod1[2][3] = w1[2][3] * in3;
+            bias1_scaled[2] = {{2{b1[2][7]}}, b1[2], 6'b0};
+            sum1_node[2] = prod1[2][0] + prod1[2][1] + prod1[2][2] + prod1[2][3] + bias1_scaled[2];
+            h1[2] = pwl_sigmoid(sum1_node[2]);
 
-            prod[3][0] = w1[3][0] * in0; prod[3][1] = w1[3][1] * in1; prod[3][2] = w1[3][2] * in2; prod[3][3] = w1[3][3] * in3;
-            bias_scaled[3] = {{2{b1[3][7]}}, b1[3], 6'b0};
-            sum_node[3] = prod[3][0] + prod[3][1] + prod[3][2] + prod[3][3] + bias_scaled[3];
-            h[3] = pwl_sigmoid(sum_node[3]);
+            prod1[3][0] = w1[3][0] * in0; prod1[3][1] = w1[3][1] * in1; prod1[3][2] = w1[3][2] * in2; prod1[3][3] = w1[3][3] * in3;
+            bias1_scaled[3] = {{2{b1[3][7]}}, b1[3], 6'b0};
+            sum1_node[3] = prod1[3][0] + prod1[3][1] + prod1[3][2] + prod1[3][3] + bias1_scaled[3];
+            h1[3] = pwl_sigmoid(sum1_node[3]);
 
-            // Layer 2 - Output Layer
-            out_prod[0] = w2[0] * h[0]; out_prod[1] = w2[1] * h[1]; out_prod[2] = w2[2] * h[2]; out_prod[3] = w2[3] * h[3];
-            out_bias_scaled = {{2{b2[7]}}, b2, 6'b0};
-            out_sum_node = out_prod[0] + out_prod[1] + out_prod[2] + out_prod[3] + out_bias_scaled;
-            flap_decision = (out_sum_node > 16'sd0) ? 1'b1 : 1'b0;
+            // Layer 2 - Hidden Layer 2 with Q2.6 PWL Sigmoid Activation
+            prod2[0][0] = w2[0][0] * h1[0]; prod2[0][1] = w2[0][1] * h1[1]; prod2[0][2] = w2[0][2] * h1[2]; prod2[0][3] = w2[0][3] * h1[3];
+            bias2_scaled[0] = {{2{b2[0][7]}}, b2[0], 6'b0};
+            sum2_node[0] = prod2[0][0] + prod2[0][1] + prod2[0][2] + prod2[0][3] + bias2_scaled[0];
+            h2[0] = pwl_sigmoid(sum2_node[0]);
+
+            prod2[1][0] = w2[1][0] * h1[0]; prod2[1][1] = w2[1][1] * h1[1]; prod2[1][2] = w2[1][2] * h1[2]; prod2[1][3] = w2[1][3] * h1[3];
+            bias2_scaled[1] = {{2{b2[1][7]}}, b2[1], 6'b0};
+            sum2_node[1] = prod2[1][0] + prod2[1][1] + prod2[1][2] + prod2[1][3] + bias2_scaled[1];
+            h2[1] = pwl_sigmoid(sum2_node[1]);
+
+            prod2[2][0] = w2[2][0] * h1[0]; prod2[2][1] = w2[2][1] * h1[1]; prod2[2][2] = w2[2][2] * h1[2]; prod2[2][3] = w2[2][3] * h1[3];
+            bias2_scaled[2] = {{2{b2[2][7]}}, b2[2], 6'b0};
+            sum2_node[2] = prod2[2][0] + prod2[2][1] + prod2[2][2] + prod2[2][3] + bias2_scaled[2];
+            h2[2] = pwl_sigmoid(sum2_node[2]);
+
+            prod2[3][0] = w2[3][0] * h1[0]; prod2[3][1] = w2[3][1] * h1[1]; prod2[3][2] = w2[3][2] * h1[2]; prod2[3][3] = w2[3][3] * h1[3];
+            bias2_scaled[3] = {{2{b2[3][7]}}, b2[3], 6'b0};
+            sum2_node[3] = prod2[3][0] + prod2[3][1] + prod2[3][2] + prod2[3][3] + bias2_scaled[3];
+            h2[3] = pwl_sigmoid(sum2_node[3]);
+
+            // Layer 3 - Output Layer
+            prod3[0] = w3[0] * h2[0]; prod3[1] = w3[1] * h2[1]; prod3[2] = w3[2] * h2[2]; prod3[3] = w3[3] * h2[3];
+            bias3_scaled = {{2{b3[7]}}, b3, 6'b0};
+            sum3_node = prod3[0] + prod3[1] + prod3[2] + prod3[3] + bias3_scaled;
+            flap_decision = (sum3_node > 16'sd0) ? 1'b1 : 1'b0;
         end
     end
 

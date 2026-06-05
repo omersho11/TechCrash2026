@@ -32,8 +32,10 @@ static const unsigned char PROGMEM bird_bmp[] = {
 struct NeuralNetwork {
     float w1[4][4];
     float b1[4];
-    float w2[4];
-    float b2;
+    float w2[4][4];
+    float b2[4];
+    float w3[4];
+    float b3;
 };
 
 struct Bird {
@@ -78,22 +80,28 @@ float random_float(float min_val, float max_val) {
 
 void initBrain(NeuralNetwork &brain) {
     for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) brain.w1[i][j] = random_float(-1.0, 1.0);
+        for (int j = 0; j < 4; j++) {
+            brain.w1[i][j] = random_float(-1.0, 1.0);
+            brain.w2[i][j] = random_float(-1.0, 1.0);
+        }
         brain.b1[i] = random_float(-1.0, 1.0);
-        brain.w2[i] = random_float(-1.0, 1.0);
+        brain.b2[i] = random_float(-1.0, 1.0);
+        brain.w3[i] = random_float(-1.0, 1.0);
     }
-    brain.b2 = random_float(-1.0, 1.0);
+    brain.b3 = random_float(-1.0, 1.0);
 }
 
 void mutateBrain(NeuralNetwork &brain, float rate) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             if (random_float(0, 1.0) < rate) brain.w1[i][j] += random_float(-0.3, 0.3);
+            if (random_float(0, 1.0) < rate) brain.w2[i][j] += random_float(-0.3, 0.3);
         }
         if (random_float(0, 1.0) < rate) brain.b1[i] += random_float(-0.3, 0.3);
-        if (random_float(0, 1.0) < rate) brain.w2[i] += random_float(-0.3, 0.3);
+        if (random_float(0, 1.0) < rate) brain.b2[i] += random_float(-0.3, 0.3);
+        if (random_float(0, 1.0) < rate) brain.w3[i] += random_float(-0.3, 0.3);
     }
-    if (random_float(0, 1.0) < rate) brain.b2 += random_float(-0.3, 0.3);
+    if (random_float(0, 1.0) < rate) brain.b3 += random_float(-0.3, 0.3);
 }
 
 float sigmoid(float x) { return 1.0 / (1.0 + exp(-x)); }
@@ -104,16 +112,31 @@ bool decideFlap(Bird &bird, float nextPipeX, float nextPipeGapY) {
     float in2 = (nextPipeX - (OLED_WIDTH / 4.0)) / OLED_WIDTH;
     float in3 = (nextPipeGapY - bird.y) / GROUND_Y;
 
-    float h[4];
+    float h1[4];
     for (int i = 0; i < 4; i++) {
         float sum = bird.brain.w1[i][0] * in0 +
                     bird.brain.w1[i][1] * in1 +
                     bird.brain.w1[i][2] * in2 +
                     bird.brain.w1[i][3] * in3 +
                     bird.brain.b1[i];
-        h[i] = sigmoid(sum);
+        h1[i] = sigmoid(sum);
     }
-    float out = bird.brain.w2[0] * h[0] + bird.brain.w2[1] * h[1] + bird.brain.w2[2] * h[2] + bird.brain.w2[3] * h[3] + bird.brain.b2;
+
+    float h2[4];
+    for (int i = 0; i < 4; i++) {
+        float sum = bird.brain.w2[i][0] * h1[0] +
+                    bird.brain.w2[i][1] * h1[1] +
+                    bird.brain.w2[i][2] * h1[2] +
+                    bird.brain.w2[i][3] * h1[3] +
+                    bird.brain.b2[i];
+        h2[i] = sigmoid(sum);
+    }
+
+    float out = bird.brain.w3[0] * h2[0] +
+                bird.brain.w3[1] * h2[1] +
+                bird.brain.w3[2] * h2[2] +
+                bird.brain.w3[3] * h2[3] +
+                bird.brain.b3;
     return sigmoid(out) > 0.5;
 }
 
@@ -140,7 +163,7 @@ int8_t floatToQ2_6(float val) {
 
 // Transmit best weights to FPGA
 void transferWeightsToFPGA(NeuralNetwork &brain) {
-    uint8_t packet[27];
+    uint8_t packet[47];
     packet[0] = 0xA0; // Header for weights
     
     int idx = 1;
@@ -149,20 +172,24 @@ void transferWeightsToFPGA(NeuralNetwork &brain) {
             packet[idx++] = (uint8_t)floatToQ2_6(brain.w1[i][j]);
         }
         packet[idx++] = (uint8_t)floatToQ2_6(brain.b1[i]);
-        packet[idx++] = (uint8_t)floatToQ2_6(brain.w2[i]);
+        for (int j = 0; j < 4; j++) {
+            packet[idx++] = (uint8_t)floatToQ2_6(brain.w2[i][j]);
+        }
+        packet[idx++] = (uint8_t)floatToQ2_6(brain.b2[i]);
+        packet[idx++] = (uint8_t)floatToQ2_6(brain.w3[i]);
     }
-    packet[idx++] = (uint8_t)floatToQ2_6(brain.b2);
+    packet[idx++] = (uint8_t)floatToQ2_6(brain.b3);
     
     // Checksum calculation (sum of payload bytes)
     uint8_t checksum = 0;
-    for (int i = 1; i < 26; i++) {
+    for (int i = 1; i < 46; i++) {
         checksum += packet[i];
     }
-    packet[26] = checksum;
+    packet[46] = checksum;
     
     // Transmit
-    Serial2.write(packet, 27);
-    Serial.println("Transferred best weights to FPGA.");
+    Serial2.write(packet, 47);
+    Serial.println("Transferred best weights (3 layers) to FPGA.");
 }
 
 void nextGeneration() {
