@@ -11,6 +11,7 @@ set_global_assignment -name LAST_QUARTUS_VERSION "17.1.0 Lite Edition"
 set_global_assignment -name SYSTEMVERILOG_FILE src/speed_loopback_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/seven_segment.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/parallel_spi_tx.sv
+set_global_assignment -name SYSTEMVERILOG_FILE src/spi_tx.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/uart_rx.sv
 
 # ---- Clock ----
