@@ -140,8 +140,8 @@ bool decideFlap(Bird &bird, float nextPipeX, float nextPipeGapY) {
     return sigmoid(out) > 0.5;
 }
 
-void resetCourse() {
-    my_srand(42);
+void resetCourse(uint32_t seed) {
+    my_srand(seed);
     obstacleX[0] = OLED_WIDTH;
     obstacleGapY[0] = 16 + (my_rand() % (GROUND_Y - 32));
     obstacleX[1] = OLED_WIDTH + pipeDistance;
@@ -221,7 +221,7 @@ void nextGeneration() {
     }
     generation++;
     aliveCount = POPULATION_SIZE;
-    resetCourse();
+    resetCourse(42 + generation);
 }
 
 void processUART() {
@@ -257,7 +257,7 @@ void resetInferenceBird() {
     inferenceBirdVel = 0;
     inferenceScore = 0;
     inferenceBirdAlive = true;
-    resetCourse();
+    resetCourse(esp_random());
 }
 
 // Query FPGA for inference decision
@@ -325,7 +325,7 @@ void setup() {
         initBrain(population[i].brain);
     }
     updateDifficultySettings();
-    resetCourse();
+    resetCourse(42);
 }
 
 void drawGameBorder() {
