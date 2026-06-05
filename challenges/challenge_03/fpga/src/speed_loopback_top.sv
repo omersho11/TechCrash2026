@@ -52,7 +52,7 @@ module speed_loopback_top(
     wire       mosi_out;
     wire       sclk_out;
 
-    spi_tx #(.CLK_DIV(16)) u_tx (
+    spi_tx #(.CLK_DIV(8)) u_tx (
         .clk(clk), .rst_n(rst_n), .start(state == S_IDLE || state == S_DONE),
         .tx_start(tx_start), .tx_data(tx_data),
         .tx_busy(tx_busy),
