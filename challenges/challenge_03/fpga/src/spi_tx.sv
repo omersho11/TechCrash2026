@@ -63,14 +63,14 @@ module spi_tx #(
             pack_len        <= 0;
             serialize_start <= 0;
             serialize_data  <= 0;
-            startup_delay   <= 8'd100;
+            startup_delay   <= 8'd10;
         end else if (start) begin
             byte_cnt        <= 0;
             pack_buf        <= 0;
             pack_len        <= 0;
             serialize_start <= 0;
             serialize_data  <= 0;
-            startup_delay   <= 8'd100;
+            startup_delay   <= 8'd10;
         end else begin
             serialize_start <= 0;
 
