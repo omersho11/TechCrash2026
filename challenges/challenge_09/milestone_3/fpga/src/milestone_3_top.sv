@@ -23,7 +23,7 @@ module milestone_3_top (
     assign ARDUINO_IO[1] = uart_tx;   // FPGA TX (Output, to ESP32 RX)
 
     // Mode display on LEDs
-    assign LEDR = {SW[9], SW[8], 4'b0, SW[3:0]}; // SW[8] mode display, SW[9] show display mode, SW[3:0] difficulty
+    assign LEDR = {SW[9], SW[8], SW[7], 3'b0, SW[3:0]}; // SW[7] show network, SW[8] mode display, SW[9] show display mode, SW[3:0] difficulty
 
     // HEX0 displays SW[3:0] (0 to 15 in hex format)
     seven_seg_decoder hex0_decoder (
@@ -235,14 +235,17 @@ module milestone_3_top (
     reg [3:0] sw_last;
     reg sw8_last;
     reg sw9_last;
+    reg sw7_last;
     wire sw_change = (SW[3:0] != sw_last);
     wire sw8_change = (SW[8] != sw8_last);
     wire sw9_change = (SW[9] != sw9_last);
+    wire sw7_change = (SW[7] != sw7_last);
 
     always @(posedge MAX10_CLK1_50) begin
         sw_last <= SW[3:0];
         sw8_last <= SW[8];
         sw9_last <= SW[9];
+        sw7_last <= SW[7];
     end
 
     reg [25:0] timer_counter = 0;
@@ -268,11 +271,13 @@ module milestone_3_top (
     reg send_diff = 0;
     reg send_mode9 = 0;
     reg send_mode8 = 0;
+    reg send_mode7 = 0;
     reg send_decision = 0;
 
     reg [3:0] queued_diff = 0;
     reg queued_mode9 = 0;
     reg queued_mode8 = 0;
+    reg queued_mode7 = 0;
     reg queued_decision = 0;
 
     always @(posedge MAX10_CLK1_50) begin
@@ -287,6 +292,10 @@ module milestone_3_top (
         if (sw9_change || (timer_tick && !send_mode9)) begin
             send_mode9 <= 1'b1;
             queued_mode9 <= SW[9];
+        end
+        if (sw7_change || (timer_tick && !send_mode7)) begin
+            send_mode7 <= 1'b1;
+            queued_mode7 <= SW[7];
         end
         if (compute_trigger) begin
             send_decision <= 1'b1;
@@ -315,6 +324,11 @@ module milestone_3_top (
                     tx_data <= queued_mode8 ? 8'h31 : 8'h30;
                     tx_start <= 1'b1;
                     send_mode8 <= 1'b0;
+                    tx_state <= 1;
+                end else if (send_mode7 && !tx_busy) begin
+                    tx_data <= queued_mode7 ? 8'h41 : 8'h40;
+                    tx_start <= 1'b1;
+                    send_mode7 <= 1'b0;
                     tx_state <= 1;
                 end
             end

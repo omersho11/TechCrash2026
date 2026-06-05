@@ -65,6 +65,7 @@ int pipeDistance = 64;
 bool showOnlyBest = false;
 bool fpgaInferenceMode = false; // false = ESP32 training, true = FPGA inference
 bool lastFpgaInferenceMode = false;
+bool showNetworkOnOled = false;
 
 // Pseudo-RNG for obstacle course
 uint32_t course_state = 42;
@@ -243,6 +244,12 @@ void processUART() {
         else if (incomingByte == 0x31) {
             fpgaInferenceMode = true;
         }
+        else if (incomingByte == 0x40) {
+            showNetworkOnOled = false;
+        }
+        else if (incomingByte == 0x41) {
+            showNetworkOnOled = true;
+        }
     }
 }
 
@@ -293,12 +300,77 @@ bool queryFPGAInference(float nextPipeX, float nextPipeGapY) {
                 fpgaInferenceMode = false;
             } else if (incomingByte == 0x31) {
                 fpgaInferenceMode = true;
+            } else if (incomingByte == 0x40) {
+                showNetworkOnOled = false;
+            } else if (incomingByte == 0x41) {
+                showNetworkOnOled = true;
             } else if (incomingByte == 0x00 || incomingByte == 0x01) {
                 return (incomingByte == 0x01);
             }
         }
     }
     return false; // Timeout safety
+}
+
+void drawNeuralNetwork() {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    
+    display.setCursor(20, 0);
+    display.print("BRAIN VISUALIZER");
+    
+    int inputX = 10;
+    int h1X = 45;
+    int h2X = 80;
+    int outX = 115;
+    
+    int nodeY[4] = {12, 24, 36, 48};
+    int outY = 30;
+    
+    NeuralNetwork &brain = population[0].brain;
+    
+    // Draw connections between Input and H1
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            if (abs(brain.w1[j][i]) > 0.2) {
+                display.drawLine(inputX, nodeY[i], h1X, nodeY[j], SSD1306_WHITE);
+            }
+        }
+    }
+    
+    // Draw connections between H1 and H2
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            if (abs(brain.w2[j][i]) > 0.2) {
+                display.drawLine(h1X, nodeY[i], h2X, nodeY[j], SSD1306_WHITE);
+            }
+        }
+    }
+    
+    // Draw connections between H2 and Output
+    for (int i = 0; i < 4; i++) {
+        if (abs(brain.w3[i]) > 0.2) {
+            display.drawLine(h2X, nodeY[i], outX, outY, SSD1306_WHITE);
+        }
+    }
+    
+    // Draw nodes
+    for (int i = 0; i < 4; i++) {
+        display.fillCircle(inputX, nodeY[i], 3, SSD1306_WHITE);
+        display.fillCircle(h1X, nodeY[i], 3, SSD1306_WHITE);
+        display.fillCircle(h2X, nodeY[i], 3, SSD1306_WHITE);
+    }
+    display.fillCircle(outX, outY, 3, SSD1306_WHITE);
+    
+    display.setCursor(2, 57);
+    display.print("IN");
+    display.setCursor(40, 57);
+    display.print("H1");
+    display.setCursor(75, 57);
+    display.print("H2");
+    display.setCursor(105, 57);
+    display.print("OUT");
 }
 
 void setup() {
@@ -337,6 +409,14 @@ void drawGameBorder() {
 
 void loop() {
     processUART();
+    
+    if (showNetworkOnOled) {
+        drawNeuralNetwork();
+        display.display();
+        delay(33);
+        return;
+    }
+
     display.clearDisplay();
 
     // Handle mode transition: copy weights to FPGA
