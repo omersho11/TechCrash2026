@@ -325,6 +325,7 @@ void loop() {
             }
         }
         transferWeightsToFPGA(population[0].brain);
+        delay(100); // Wait for UART transmission to fully complete
         resetInferenceBird();
     }
     lastFpgaInferenceMode = fpgaInferenceMode;

@@ -127,11 +127,27 @@ module milestone_3_top (
         end
     end
 
+    // --- Piecewise Linear Sigmoid Approximation ---
+    function signed [7:0] pwl_sigmoid(input signed [15:0] sum_val);
+        reg signed [7:0] sum_q;
+        begin
+            // Convert Q8.8 product sum to Q4.4
+            sum_q = sum_val[11:4];
+            if (sum_q <= -8'sd32) begin
+                pwl_sigmoid = 8'sd0;
+            end else if (sum_q >= 8'sd32) begin
+                pwl_sigmoid = 8'sd16; // 1.0 in Q4.4
+            end else begin
+                // 0.25 * sum_q + 0.5 -> (sum_q >>> 2) + 8
+                pwl_sigmoid = (sum_q >>> 2) + 8'sd8;
+            end
+        end
+    endfunction
+
     // --- Neural Network Hardware Accelerator ---
     reg signed [7:0]  h [0:3];
     reg               flap_decision;
 
-    // Explicitly signed intermediate products & sums
     reg signed [15:0] prod [0:3][0:3];
     reg signed [15:0] bias_scaled [0:3];
     reg signed [15:0] sum_node [0:3];
@@ -142,28 +158,28 @@ module milestone_3_top (
 
     always @(posedge MAX10_CLK1_50) begin
         if (compute_trigger) begin
-            // Layer 1
+            // Layer 1 - Hidden Layers with PWL Sigmoid Activation
             prod[0][0] = w1[0][0] * in0; prod[0][1] = w1[0][1] * in1; prod[0][2] = w1[0][2] * in2; prod[0][3] = w1[0][3] * in3;
             bias_scaled[0] = {{4{b1[0][7]}}, b1[0], 4'b0};
             sum_node[0] = prod[0][0] + prod[0][1] + prod[0][2] + prod[0][3] + bias_scaled[0];
-            h[0] = (sum_node[0] > 16'sd0) ? 8'sd16 : 8'sd0; // step threshold active
+            h[0] = pwl_sigmoid(sum_node[0]);
 
             prod[1][0] = w1[1][0] * in0; prod[1][1] = w1[1][1] * in1; prod[1][2] = w1[1][2] * in2; prod[1][3] = w1[1][3] * in3;
             bias_scaled[1] = {{4{b1[1][7]}}, b1[1], 4'b0};
             sum_node[1] = prod[1][0] + prod[1][1] + prod[1][2] + prod[1][3] + bias_scaled[1];
-            h[1] = (sum_node[1] > 16'sd0) ? 8'sd16 : 8'sd0;
+            h[1] = pwl_sigmoid(sum_node[1]);
 
             prod[2][0] = w1[2][0] * in0; prod[2][1] = w1[2][1] * in1; prod[2][2] = w1[2][2] * in2; prod[2][3] = w1[2][3] * in3;
             bias_scaled[2] = {{4{b1[2][7]}}, b1[2], 4'b0};
             sum_node[2] = prod[2][0] + prod[2][1] + prod[2][2] + prod[2][3] + bias_scaled[2];
-            h[2] = (sum_node[2] > 16'sd0) ? 8'sd16 : 8'sd0;
+            h[2] = pwl_sigmoid(sum_node[2]);
 
             prod[3][0] = w1[3][0] * in0; prod[3][1] = w1[3][1] * in1; prod[3][2] = w1[3][2] * in2; prod[3][3] = w1[3][3] * in3;
             bias_scaled[3] = {{4{b1[3][7]}}, b1[3], 4'b0};
             sum_node[3] = prod[3][0] + prod[3][1] + prod[3][2] + prod[3][3] + bias_scaled[3];
-            h[3] = (sum_node[3] > 16'sd0) ? 8'sd16 : 8'sd0;
+            h[3] = pwl_sigmoid(sum_node[3]);
 
-            // Layer 2
+            // Layer 2 - Output Layer (Decision based on output sigmoid > 0.5, which is out_sum_node > 0)
             out_prod[0] = w2[0] * h[0]; out_prod[1] = w2[1] * h[1]; out_prod[2] = w2[2] * h[2]; out_prod[3] = w2[3] * h[3];
             out_bias_scaled = {{4{b2[7]}}, b2, 4'b0};
             out_sum_node = out_prod[0] + out_prod[1] + out_prod[2] + out_prod[3] + out_bias_scaled;
